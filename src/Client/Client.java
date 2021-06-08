@@ -9,13 +9,35 @@ import java.util.Scanner;
 
 public class Client {
 
-    protected static String username;
-    protected static String role = "client";
+    private String username;
+    private String role = "client";
     private static String curTime = "night";
+    private Socket socket;
+    private PrintWriter out;
+    private BufferedReader in;
 
 
     public static void main(String[] args)
     {
+
+        Client client = new Client();
+        client.connectToServer();
+        Scanner sc = new Scanner(System.in);
+
+
+        // closing the scanner object
+        sc.close();
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username){
+        this.username = username;
+    }
+
+    private void connectToServer() {
         // object of scanner class
         Scanner sc = new Scanner(System.in);
 
@@ -25,87 +47,36 @@ public class Client {
         sc.nextLine();
 
         try {
-            Socket socket = new Socket("localhost", port);
+            this.socket = new Socket("localhost", port);
             System.out.println("Client connected to the server");
             // writing to server
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            out = new PrintWriter(socket.getOutputStream(), true);
 
             // reading from server
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-
-            String serverCommand;
-
-            out.write(role + "\n");
+            System.out.println("Enter a user name");
+            String name = sc.nextLine();
+            out.write(name);
             out.flush();
-            username = in.readLine();
-            System.out.println(username);
+            String serverCommand = in.readLine();
+            while (true) {
 
-            sc = new Scanner(System.in);
-            String line = null;
-
-
-            //curTime = in.readLine();
-            System.out.println("Now it's " + curTime);
-
-
-            while(socket.isConnected())
-            {
-                curTime = in.readLine();
-                System.out.println("Now it's " + curTime);
-
-                if (curTime.equals("night"))
-                {
-
+                if (serverCommand.equals("True")) {
+                    setUsername(name);
+                    break;
                 }
-
-                if (curTime.equals("day"))
-                {
-
+                else {
+                    System.out.println("Enter a new user name");
+                    name = sc.nextLine();
+                    out.write(name);
+                    out.flush();
                 }
-
-                if (curTime.equals("votingTime"))
-                {
-
-                }
-
-
-
-
+                serverCommand = in.readLine();
             }
 
-
-
-            while (!"exit".equalsIgnoreCase(line)) {
-
-                // reading from user
-                line = sc.nextLine();
-
-                // sending the user input to server
-                out.println(line);
-                out.flush();
-
-                // displaying server reply
-                System.out.println("Server replied " + in.readLine());
-            }
-
-            // closing the scanner object
-            sc.close();
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-
-
-
 }

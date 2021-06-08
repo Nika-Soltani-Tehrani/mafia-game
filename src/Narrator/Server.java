@@ -9,6 +9,7 @@ import java.util.concurrent.Executors;
 // Server class
 class Server {
 
+    final int port = 1234;
     private static ArrayList<String> users = new ArrayList<>();
     private static ArrayList<String> roles = new ArrayList<>();
     private static ArrayList<PrintWriter> oStreams = new ArrayList<>();
@@ -20,45 +21,44 @@ class Server {
     private static LinkedHashMap<String,String> usersAndRoles  = new LinkedHashMap<>();
     private static LinkedHashMap<PrintWriter,String[]> mafiaGroup = new LinkedHashMap<>();
 
+    private ServerSocket serverSocket;
+    //private static ArrayList<Record> records;
+    private static String filePath = "server-files/records.txt";
 
-    public static void main(String[] args) throws IOException {
+    public Server() throws IOException
+    {
 
+        try {
+            this.serverSocket = new ServerSocket(1234);
+        } catch (Exception var2) {
+            var2.printStackTrace();
+        }
+
+        //records = new ArrayList();
+        File file = new File(filePath);
+        if (!file.exists()) {
+            //this.writeFile(records, filePath);
+        }
+
+    }
+
+    public static void main(String[] args) throws IOException
+    {
         {
             times.add("night");
             times.add("day");
             times.add("votingTime");
         }
+
+        Server server = new Server();
         Scanner scanner = new Scanner(System.in);
         System.out.println("Enter number of players");
         int numberOfThreads = scanner.nextInt();
-        int numOfCurUser = 0;
         scanner.nextLine();
 
-        //by this method we get players and randomize the list
-        getUsers(numberOfThreads);
-
-        ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
-        ServerSocket serverSocket = new ServerSocket(1234);
-        System.out.println("The narrator is waiting for players to join...");
-        //serverSocket.setReuseAddress(true);
-        int count = numberOfThreads;
-        try{
-            while (count > 0) //loop for starting the connections with clients
-            {
-
-                Socket socket = serverSocket.accept();
-                System.out.println("New client connected with port address" + socket.getInetAddress().getHostAddress());
-
-                //socket.setSoTimeout(30000); // inputStream's read times out if no data came after 3 seconds
-                executorService.execute(new ConnectionHandler(socket,numOfCurUser++));
-                // go back to start of infinite loop and listen for next incoming connection
-                System.out.println("+++++");
-                count--;
-            }
-
-
+        server.makeConnection(numberOfThreads);
             //first night
-            for ( PrintWriter writer: oStreams)
+            /*for ( PrintWriter writer: oStreams)
             {
                 writer.println("Welcome to the first night.\n");
                 writer.flush();
@@ -94,58 +94,12 @@ class Server {
 
                 }
 
-            }
-
-
-            while(users.size() >= 1)
-            {
-                if (curTime.equals("night"))
-                {
-                    //for (PrintWriter writer: currentUsers.keySet())
-                    //{
-
-                    //}
-
-                }
-
-                if (curTime.equals("day"))
-                {
-
-                }
-
-                if (curTime.equals("votingTime"))
-                {
-
-                }
-
-                setTime(curTime);
-            }
-
-
-        }
-        catch (IOException e) {
-            System.err.println(e.getMessage());
-            e.printStackTrace();
-
-        }
-        finally {
-            try {
-                serverSocket.close();
-            }
-            catch (IOException e) {
-                System.err.println(e.getMessage());
-                e.printStackTrace();
-
-            }
-        }
+            }*/
 
     }
 
 
-
-
-
-    public static class ConnectionHandler implements Runnable {
+    private static class ConnectionHandler implements Runnable {
 
         private Socket socket;
         private int numOfUser;
@@ -155,34 +109,42 @@ class Server {
             this.numOfUser = numOfCurUser;
         }
 
+        @Override
         public void run() {
             BufferedReader reader = null;
             PrintWriter writer = null;
             String role;
-            try {
+            try
+            {
                 //Read from the client
                 reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 //Write to the client
                 writer = new PrintWriter(socket.getOutputStream(), true);
 
+                String username = reader.readLine();
+                while (true){
+                    if (uniqueUsername(username)) {
+                        users.add(username);
+                        writer.println("True");
+                        writer.flush();
+                        break;
+                    } else {
+                        writer.println("False");
+                        writer.flush();
+                        username = reader.readLine();
+                    }
+                }
+                //System.out.println(username);
+
+
                 role = reader.readLine();
                 System.out.println(role);
-                addNewUser(writer,numOfUser,role);
-                System.out.println( users.get(numOfUser) + " - " + role + " added to the game.");
+                //addNewUser(writer,numOfUser,role);
+                //System.out.println( users.get(numOfUser) + " - " + role + " added to the game.");
                 //set username to each role
-                writer.println(users.get(numOfUser));
-                writer.flush();
+                //writer.println(users.get(numOfUser));
+                //writer.flush();
 
-                //socket.getOutputStream().write('h');
-
-                //socket.getOutputStream().flush();
-
-                // The read loop. Code only exits this loop if connection is lost / client disconnects
-                /*while(true) {
-                    String line = reader.readLine();
-                    if(line == null) break;
-                    writer.println("Echo: " + line);
-                }*/
             } catch (IOException e) {
                 throw new RuntimeException(e);
             } finally {
@@ -202,35 +164,23 @@ class Server {
         }
     }
 
-    private static void getUsers(int count)
+    private static boolean uniqueUsername(String username)
     {
-        Scanner scanner = new Scanner(System.in);
-        int flag = 0;
-        while (count > 0){
-            System.out.println("Enter your username (Other players will see your username)");
-            String name = scanner.nextLine();
 
-            //checking the uniqueness of the username
-            if (users.size() > 0) {
-                for (String user : users) {
-                    if (name.equals(user)) {
-                        System.out.println("This username have been chosen. Enter another one: ");
-                        flag = 1;
-                        break;
-                    }
+        //checking the uniqueness of the username
+        if (users.size() > 0) {
+            for (String user : users) {
+                if (username.equals(user)) {
+                    System.out.println("No unique username");
+                    return false;
                 }
             }
-            if (flag == 0) {
-                users.add(name);
-                System.out.println(name + " added to the game");
-                count--;
-            }
         }
-        Collections.shuffle(users);
+       return true;
     }
 
 
-    private static synchronized void addNewUser(PrintWriter writer, int numOfUser,String role)
+    private synchronized static void addNewUser(PrintWriter writer, int numOfUser,String role)
     {
         String[] info = {users.get(numOfUser),role};
         currentUsers.put(writer,info);
@@ -247,13 +197,13 @@ class Server {
 
 
     // Remove user quit
-    private static synchronized void removeOldUser(PrintWriter oldUser){
+    private synchronized void removeOldUser(PrintWriter oldUser){
         currentUsers.remove(oldUser);
     }
 
 
     // Send message to every user in current users list
-    private static synchronized void sendMessage(String message){
+    private synchronized void sendMessage(String message){
         for(PrintWriter user:currentUsers.keySet()){
             user.write(message);
             user.flush();
@@ -261,7 +211,7 @@ class Server {
         }
     }
 
-    private static String setTime(String curTime)
+    private String setTime(String curTime)
     {
         int index = times.indexOf(curTime);
         if( index < times.size() - 1)
@@ -272,21 +222,47 @@ class Server {
             return times.get(0);
     }
 
+    private void assignRoles()
+    {
+        Collections.shuffle(users);
+
+    }
+
+    private void determinePlayers(int numberOfThreads)
+    {
+        int ordinaries = numberOfThreads - 8;
+
+    }
+    public void makeConnection(int numberOfThreads) throws IOException {
+
+        int numOfCurUser = 0;
+        ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
+        ServerSocket serverSocket = new ServerSocket(port);
+        System.out.println("The narrator is waiting on port '1234' for players to join...");
+        //serverSocket.setReuseAddress(true);
+        int count = numberOfThreads;
+        try {
+            while (count > 0) //loop for starting the connections with clients
+            {
+                Socket socket = serverSocket.accept();
+                System.out.println("New client connected with port address" + socket.getInetAddress().getHostAddress());
+
+
+                //socket.setSoTimeout(30000); // inputStream's read times out if no data came after 3 seconds
+                executorService.execute(new ConnectionHandler(socket, numOfCurUser++));
+                // go back to start of infinite loop and listen for next incoming connection
+                count--;
+            }
+
+        }
+        catch (IOException e)
+        {
+            System.err.println(e.getMessage());
+        }
+    }
 
 }
 
-/*
-for ( Map.Entry<PrintWriter, String[]> userInfo : currentUsers.entrySet())
-            {
-                LinkedHashMap<PrintWriter,String[]> mafiaGroup = new LinkedHashMap<>();
-                if  (  userInfo.getValue()[1].equals("god father")
-                    || userInfo.getValue()[1].equals("mafia")
-                    || userInfo.getValue()[1].equals("dr.Lector")
-                    )
-                {
-                    mafiaGroup.put(userInfo.getKey(),userInfo.getValue());
-                }
 
-            }
- */
+
 

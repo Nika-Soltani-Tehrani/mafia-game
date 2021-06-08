@@ -1,8 +1,5 @@
 package Client.Citizen;
 
-import Client.Citizen.Citizen;
-import Client.Client;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
