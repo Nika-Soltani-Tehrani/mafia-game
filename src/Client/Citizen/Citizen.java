@@ -4,13 +4,17 @@ package Client.Citizen;
 
 public class Citizen {
 
-    private static String username;
-    private static String role = "citizen";
-    protected String curTime = "night";
+    private String username;
+    private String role = "citizen";
+    protected static String curTime = "night";
     protected Boolean isAsleep = true;//This field determines whether mafia is asleep or is active.
     private String guess;//This field is used to save the one's name which the citizen thinks he is mafia.
 
 
+
+    public Citizen(String username) {
+        this.username = username;
+    }
 
     public String getTime() {
         return curTime;

@@ -1,5 +1,10 @@
 package Narrator;
 
+import Client.Citizen.*;
+import Client.Mafia.DrLector;
+import Client.Mafia.GodFather;
+import Client.Mafia.Mafia;
+
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -12,8 +17,7 @@ class Server {
     final int port = 1234;
     private static ArrayList<String> users = new ArrayList<>();
     private static ArrayList<String> roles = new ArrayList<>();
-    private static ArrayList<PrintWriter> oStreams = new ArrayList<>();
-    private static ArrayList<String> times = new ArrayList<>();
+    protected static ArrayList<PrintWriter> oStreams = new ArrayList<>();
     private static String curTime = "night";
 
 
@@ -42,13 +46,7 @@ class Server {
 
     }
 
-    public static void main(String[] args) throws IOException
-    {
-        {
-            times.add("night");
-            times.add("day");
-            times.add("votingTime");
-        }
+    public static void main(String[] args) throws IOException {
 
         Server server = new Server();
         Scanner scanner = new Scanner(System.in);
@@ -57,6 +55,10 @@ class Server {
         scanner.nextLine();
 
         server.makeConnection(numberOfThreads);
+        server.assignRoles(numberOfThreads);
+
+    }
+
             //first night
             /*for ( PrintWriter writer: oStreams)
             {
@@ -96,16 +98,17 @@ class Server {
 
             }*/
 
-    }
 
 
     private static class ConnectionHandler implements Runnable {
 
         private Socket socket;
         private int numOfUser;
+        private Server server;
 
-        public ConnectionHandler(Socket socket,int numOfCurUser) {
+        public ConnectionHandler(Socket socket,int numOfCurUser,Server server) {
             this.socket = socket;
+            this.server = server;
             this.numOfUser = numOfCurUser;
         }
 
@@ -136,14 +139,20 @@ class Server {
                 }
                 //System.out.println(username);
 
+                String clientMessage;
+                String serverMessage;
+
+                do {
+                    clientMessage = reader.readLine();
+                    serverMessage = "[" + userName + "]: " + clientMessage;
+                    server.broadcast(serverMessage, writer);
+
+                } while (!clientMessage.equals("bye"));
+
 
                 role = reader.readLine();
                 System.out.println(role);
-                //addNewUser(writer,numOfUser,role);
-                //System.out.println( users.get(numOfUser) + " - " + role + " added to the game.");
-                //set username to each role
-                //writer.println(users.get(numOfUser));
-                //writer.flush();
+
 
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -210,9 +219,36 @@ class Server {
 
         }
     }
+    /**
+     * Delivers a message to all (broadcasting)
+     */
+    void SendToAll(String message) {
+        for (PrintWriter writer : oStreams) {
+            //aUser.sendMessage(message);
+            writer.println(message);
+            writer.flush();
+        }
+    }
+    /**
+     * Delivers a message from one user to others (broadcasting)
+     */
+    void broadcast(String message, PrintWriter excludeUser) {
+        for (PrintWriter writer : oStreams) {
+            if (writer != excludeUser) {
+                writer.println(message);
+                writer.flush();
+            }
+        }
+    }
 
     private String setTime(String curTime)
     {
+
+        ArrayList<String> times = new ArrayList<>();
+        times.add("night");
+        times.add("day");
+        times.add("votingTime");
+
         int index = times.indexOf(curTime);
         if( index < times.size() - 1)
         {
@@ -220,25 +256,26 @@ class Server {
         }
         else
             return times.get(0);
+
     }
 
-    private void assignRoles()
+    private int determinePlayers(int numberOfPlayers)
     {
-        Collections.shuffle(users);
+        int ordinaries = numberOfPlayers - 8;//8 main roles
+        int mafias = (int)Math.floor(ordinaries/3);
+        int citizens = ordinaries - mafias;
+        System.out.println("In this game we have " + mafias + " ordinary mafia roles and " +
+                            citizens + " ordinary citizen roles. ");
 
+        return citizens;
     }
-
-    private void determinePlayers(int numberOfThreads)
+    public void makeConnection(int numberOfThreads) throws IOException
     {
-        int ordinaries = numberOfThreads - 8;
-
-    }
-    public void makeConnection(int numberOfThreads) throws IOException {
-
         int numOfCurUser = 0;
+        determinePlayers(numberOfThreads);
         ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
         ServerSocket serverSocket = new ServerSocket(port);
-        System.out.println("The narrator is waiting on port '1234' for players to join...");
+        System.out.println("The narrator is waiting on port " + port + " for players to join...");
         //serverSocket.setReuseAddress(true);
         int count = numberOfThreads;
         try {
@@ -249,7 +286,7 @@ class Server {
 
 
                 //socket.setSoTimeout(30000); // inputStream's read times out if no data came after 3 seconds
-                executorService.execute(new ConnectionHandler(socket, numOfCurUser++));
+                executorService.execute(new ConnectionHandler(socket, numOfCurUser++,this));
                 // go back to start of infinite loop and listen for next incoming connection
                 count--;
             }
@@ -261,7 +298,89 @@ class Server {
         }
     }
 
+    private void assignRoles(int players)
+    {
+        int citizens = determinePlayers(players);
+        int mafias = players - citizens - 8;
+        Collections.shuffle(users);
+        int index = 0;
+        for (int i = 0; i < citizens; i++)
+        {
+            Citizen citizen = new Citizen(users.get(index++));
+        }
+        for (int i = 0; i < mafias; i++)
+        {
+            Mafia mafia = new Mafia(users.get(index++));
+        }
+        Psychologist psychologist = new Psychologist(users.get(index++));
+        Detective detective = new Detective(users.get(index++));
+        GodFather godFather = new GodFather(users.get(index++));
+        DrLector drLector = new DrLector(users.get(index++));
+        DieHard dieHard = new DieHard(users.get(index++));
+        Sniper sniper = new Sniper(users.get(index++),mafias);
+        Doctor doctor = new Doctor(users.get(index++));
+        Mayor mayor = new Mayor(users.get(index));
+
+    }
+
+    private void startGame()
+    {
+        int mafias = 10;
+        if (curTime.equals("welcome night"))
+        {
+            sendMessage("All mafias wake up!");
+            for (int i = 0 ; i < mafias; i++)
+            {
+                //receive names and streams
+            }
+        }
+
+    }
+
 }
+/*
+public void writeFile(ArrayList<Record> array, String filePath) {
+        FileOutputStream fileOut = null;
+
+        try {
+            fileOut = new FileOutputStream(filePath, false);
+        } catch (Exception var6) {
+            var6.printStackTrace();
+        }
+
+        try {
+            ObjectOutputStream objectOut = new ObjectOutputStream(fileOut);
+            objectOut.writeObject(array);
+            objectOut.close();
+        } catch (Exception var5) {
+            var5.printStackTrace();
+        }
+
+    }
+
+    public static ArrayList<Record> readFile(String filePath) {
+        FileInputStream fileIn = null;
+
+        try {
+            fileIn = new FileInputStream(filePath);
+        } catch (Exception var5) {
+            var5.printStackTrace();
+        }
+
+        try {
+            ObjectInputStream objectIn = new ObjectInputStream(fileIn);
+            ArrayList<Record> obj = (ArrayList)objectIn.readObject();
+            objectIn.close();
+            return obj;
+        } catch (Exception var4) {
+            var4.printStackTrace();
+            return null;
+        }
+    }
+ */
+/*****************************************************************************************************
+
+ */
 
 
 

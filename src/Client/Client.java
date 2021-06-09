@@ -13,8 +13,9 @@ public class Client {
     private String role = "client";
     private static String curTime = "night";
     private Socket socket;
-    private PrintWriter out;
-    private BufferedReader in;
+    private PrintWriter writer;
+    private BufferedReader reader;
+
 
 
     public static void main(String[] args)
@@ -22,11 +23,7 @@ public class Client {
 
         Client client = new Client();
         client.connectToServer();
-        Scanner sc = new Scanner(System.in);
 
-
-        // closing the scanner object
-        sc.close();
     }
 
     public String getUsername() {
@@ -50,33 +47,47 @@ public class Client {
             this.socket = new Socket("localhost", port);
             System.out.println("Client connected to the server");
             // writing to server
-            out = new PrintWriter(socket.getOutputStream(), true);
+            writer = new PrintWriter(socket.getOutputStream(), true);
 
             // reading from server
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
             System.out.println("Enter a user name");
             String name = sc.nextLine();
-            out.write(name);
-            out.flush();
-            String serverCommand = in.readLine();
+            writer.write(name);
+            writer.flush();
+            String serverCommand = reader.readLine();
             while (true) {
 
                 if (serverCommand.equals("True")) {
-                    setUsername(name);
                     break;
                 }
                 else {
                     System.out.println("Enter a new user name");
                     name = sc.nextLine();
-                    out.write(name);
-                    out.flush();
+                    writer.write(name);
+                    writer.flush();
                 }
-                serverCommand = in.readLine();
+                serverCommand = reader.readLine();
             }
 
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Sends a message to the server.
+     */
+    public void sendMessage(String message) {
+        writer.println(message);
+        writer.flush();
+    }
+
+    /**
+     * Sends a message to the client.
+     */
+    public void receiveMessage(String message) throws IOException {
+        System.out.println(reader.readLine());
     }
 }

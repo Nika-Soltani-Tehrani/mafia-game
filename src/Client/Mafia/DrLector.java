@@ -5,10 +5,14 @@ package Client.Mafia;
 public class DrLector extends Mafia {
 
 
-    private static String username;
-    private static String role = "dr.Lector";
-    private static String curTime = "night";
+    //private String username;
+    private String role = "dr.Lector";
+    //private String curTime = "night";
 
+    public DrLector(String username)
+    {
+        super(username);
+    }
 
 
 
