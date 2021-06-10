@@ -79,7 +79,7 @@ public class Client {
     /**
      * Sends a message to the server.
      */
-    public void sendMessage(String message) {
+    public void sendMessage(String message,PrintWriter writer) {
         writer.println(message);
         writer.flush();
     }
