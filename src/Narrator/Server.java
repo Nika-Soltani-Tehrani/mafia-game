@@ -8,42 +8,38 @@ import Client.Mafia.Mafia;
 import java.io.*;
 import java.net.*;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+
 
 // Server class
 class Server {
 
     final int port = 1234;
     int numberOfThreads;
+    int mafias;
     private static ArrayList<String> users = new ArrayList<>();
-    private static ArrayList<String> roles = new ArrayList<>();
     private static ArrayList<PrintWriter> oStreams = new ArrayList<>();
-    private static ArrayList<ClientHandler> clientHandlers = new ArrayList<>();
-    private static String curTime = "welcome night";
-    private static LinkedHashMap<String,PrintWriter> mafiaGroup = new LinkedHashMap<>();
 
+    public String getCurTime() {
+        return curTime;
+    }
+
+    private static ArrayList<ClientHandler> clientHandlers = new ArrayList<>();
+    private static String curTime = "day";
+    private static LinkedHashMap<String,PrintWriter> mafiaGroup = new LinkedHashMap<>();
 
     private static LinkedHashMap<PrintWriter,String[]> currentUsers  = new LinkedHashMap<>();
     private static LinkedHashMap<String,PrintWriter> usersAndStreams  = new LinkedHashMap<>();
 
-    private ServerSocket serverSocket;
-    //private static ArrayList<Record> records;
     private static String filePath = "server-files/records.txt";
 
-    public Server() throws IOException
+    public Server()
     {
 
-        try {
-            this.serverSocket = new ServerSocket(port);
-        } catch (Exception var2) {
-            var2.printStackTrace();
-        }
         //records = new ArrayList();
-        File file = new File(filePath);
+        /*File file = new File(filePath);
         if (!file.exists()) {
             //this.writeFile(records, filePath);
-        }
+        }*/
 
     }
 
@@ -54,22 +50,19 @@ class Server {
         System.out.println("Enter number of players");
         server.numberOfThreads = scanner.nextInt();
         scanner.nextLine();
-
-        server.makeConnection(server.numberOfThreads,server);
-        server.assignRoles(server.numberOfThreads);
-
+        server.makeConnection();
     }
 
     /*private static class ConnectionHandler implements Runnable {
 
         private Socket socket;
         private int numOfUser;
-        private Server server;
+        //private Server server;
         private String username;
 
-        public ConnectionHandler(Socket socket,int numOfCurUser,Server server) {
+        public ConnectionHandler(Socket socket,int numOfCurUser) {
             this.socket = socket;
-            this.server = server;
+            //this.server = server;
             this.numOfUser = numOfCurUser;
         }
 
@@ -85,6 +78,8 @@ class Server {
                 //Write to the client
                 writer = new PrintWriter(socket.getOutputStream(), true);
 
+                username = reader.readLine();
+                System.out.println(username);
                 username = getUsername(reader,writer);
                 usersAndStreams.put(username,writer);
 
@@ -95,7 +90,7 @@ class Server {
                 do {
                     clientMessage = reader.readLine();
                     serverMessage = "[" + username + "]: " + clientMessage;
-                    server.sendFromClientToAll(serverMessage, writer);
+                    sendFromClientToAll(serverMessage, writer);
 
                 } while (!clientMessage.equals("bye"));
 
@@ -122,27 +117,95 @@ class Server {
             }
         }
     }*/
+    private int determinePlayers(int numberOfPlayers)
+    {
+        int ordinaries = numberOfPlayers - 8;//8 main roles
+        if ((ordinaries % 2) == 0)
+            mafias = (int)Math.floor((float)ordinaries/3);
+        else
+            mafias = (int)Math.floor((float)ordinaries/3) + 1;
 
+        //citizens number
+        return ordinaries - mafias;
+    }
+
+    public ArrayList<String> roles()
+    {
+        ArrayList<String> roles = new ArrayList<>();
+        for (int i = 0; i < mafias ; i++)
+        {
+            roles.add("mafia");
+        }
+        for (int i = 0; i < determinePlayers(numberOfThreads) ; i++)
+        {
+            roles.add("citizen");
+        }
+        roles.add("godFather");
+        roles.add("psychologist");
+        roles.add("drLector");
+        roles.add("detective");
+        roles.add("doctor");
+        roles.add("dieHard");
+        roles.add("sniper");
+        roles.add("mayor");
+        Collections.shuffle(roles);
+        return roles;
+    }
+
+    public void makeConnection() throws IOException
+    {
+        int numOfCurUser = 0;
+        ArrayList<String> roles = roles();
+        determinePlayers(numberOfThreads);
+        //ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
+        ServerSocket serverSocket = new ServerSocket(port);
+        System.out.println("The narrator is waiting on port " + port + " for players to join...");
+        int count = numberOfThreads;
+        try {
+            while (count > 0) //loop for starting the connections with clients
+            {
+                System.out.println(count);
+                Socket socket = serverSocket.accept();
+                System.out.println("New client connected with port address" + socket.getInetAddress().getHostAddress());
+
+
+                //socket.setSoTimeout(30000); // inputStream's read times out if no data came after 3 seconds
+                ClientHandler newUser = new ClientHandler(socket,this,roles().get(numOfCurUser++));
+                clientHandlers.add(newUser);
+                oStreams.add(newUser.getWriter());
+                count--;
+                newUser.start();
+                // go back to start of infinite loop and listen for next incoming connection
+            }
+        }
+        catch (IOException e)
+        {
+            System.err.println(e.getMessage());
+        }
+    }
     public String getUsername(BufferedReader reader,PrintWriter writer) throws IOException
     {
-        String username = reader.readLine();
+        String username = receiveFromAClient(reader);
         while (true){
             if (uniqueUsername(username)) {
                 users.add(username);
-                writer.println("True");
-                writer.flush();
+                System.out.println(users.size() + "---------");
+                sendToAClient("True",writer);
+
                 break;
             } else {
-                writer.println("False");
+                //writer.println("False\n");
+                sendToAClient("False",writer);
+                System.out.println("False");
                 writer.flush();
-                username = reader.readLine();
             }
         }
+        if (users.size() == numberOfThreads)
+            assignRoles(users.size());
         return username;
-
     }
 
-    private static boolean uniqueUsername(String username)
+    private boolean uniqueUsername(String username)
     {
 
         //checking the uniqueness of the username
@@ -154,140 +217,18 @@ class Server {
                 }
             }
         }
-       return true;
-    }
-
-
-    private synchronized static void addNewUser(PrintWriter writer, int numOfUser,String role)
-    {
-        String[] info = {users.get(numOfUser),role};
-        currentUsers.put(writer,info);
-        //usersAndRoles.put(users.get(numOfUser),role);
-
-        roles.add(role);
-        oStreams.add(writer);
-
-        if (role.equals("mafia") || role.equals("god-father") || role.equals("dr.Lector"))
-        {
-         //   mafiaGroup.put(writer,info);
-        }
-    }
-
-
-    // Remove user quit
-    private synchronized void removeOldUser(PrintWriter oldUser){
-        currentUsers.remove(oldUser);
-    }
-
-
-    // Send message to every user in current users list
-    private synchronized void sendMessage(String message){
-        for(PrintWriter user:currentUsers.keySet()){
-            user.write(message);
-            user.flush();
-
-        }
-    }
-    /**
-     * Delivers a message to all (broadcasting)
-     */
-    void SendToAll(String message) {
-        for (PrintWriter writer : oStreams) {
-            //aUser.sendMessage(message);
-            writer.println(message);
-            writer.flush();
-        }
-    }
-    /**
-     * Delivers a message from one client to others
-     */
-    void sendFromClientToAll(String message, PrintWriter excludeUser) {
-        for (PrintWriter writer : oStreams) {
-            if (writer != excludeUser) {
-                writer.println(message);
-                writer.flush();
-            }
-        }
-    }
-
-    /**
-     * Delivers a message between mafias
-     */
-    void sendFromMafiaToMafia(String message, PrintWriter excludeUser) {
-        for (PrintWriter writer : mafiaGroup.values()) {
-            if (writer != excludeUser) {
-                writer.println(message);
-                writer.flush();
-            }
-        }
-    }
-
-    private String setTime(String curTime)
-    {
-
-        ArrayList<String> times = new ArrayList<>();
-        times.add("night");
-        times.add("day");
-        times.add("votingTime");
-
-        int index = times.indexOf(curTime);
-        if( index < times.size() - 1)
-        {
-            return times.get(index + 1);
-        }
-        else
-            return times.get(0);
-
-    }
-
-    private int determinePlayers(int numberOfPlayers)
-    {
-        int ordinaries = numberOfPlayers - 8;//8 main roles
-        int mafias = (int)Math.floor(ordinaries/3);
-        int citizens = ordinaries - mafias;
-        System.out.println("In this game we have " + mafias + " ordinary mafia roles and " +
-                            citizens + " ordinary citizen roles. ");
-
-        return citizens;
-    }
-    public void makeConnection(int numberOfThreads,Server server) throws IOException
-    {
-        int numOfCurUser = 0;
-        determinePlayers(numberOfThreads);
-        ExecutorService executorService = Executors.newFixedThreadPool(numberOfThreads);
-        ServerSocket serverSocket = new ServerSocket(port);
-        System.out.println("The narrator is waiting on port " + port + " for players to join...");
-        //serverSocket.setReuseAddress(true);
-        int count = numberOfThreads;
-        try {
-            while (count > 0) //loop for starting the connections with clients
-            {
-                Socket socket = serverSocket.accept();
-                System.out.println("New client connected with port address" + socket.getInetAddress().getHostAddress());
-
-
-                //socket.setSoTimeout(30000); // inputStream's read times out if no data came after 3 seconds
-                ClientHandler newUser = new ClientHandler(socket, numOfCurUser++,this);
-                executorService.execute(newUser);
-                clientHandlers.add(newUser);
-                // go back to start of infinite loop and listen for next incoming connection
-                count--;
-            }
-
-        }
-        catch (IOException e)
-        {
-            System.err.println(e.getMessage());
-        }
+        System.out.println("hello");
+        return true;
     }
 
     private void assignRoles(int players)
     {
         int citizens = determinePlayers(players);
         int mafias = players - citizens - 8;
-        Collections.shuffle(users);
-        int index = 0;
-        for (int i = 0; i < citizens; i++)
+        if (users.size() != 0){
+            Collections.shuffle(users);
+            int index = 0;
+        /*for (int i = 0; i < citizens; i++)
         {
             Citizen citizen = new Citizen(users.get(index++));
         }
@@ -301,30 +242,133 @@ class Server {
         DrLector drLector = new DrLector(users.get(index++));
         DieHard dieHard = new DieHard(users.get(index++));
         Sniper sniper = new Sniper(users.get(index++),mafias);
-        Doctor doctor = new Doctor(users.get(index++));
-        Mayor mayor = new Mayor(users.get(index));
+        Doctor doctor = new Doctor(users.get(index++));*/
+            Mayor mayor = new Mayor(users.get(index));
+        }
+
 
     }
+
+
+    private synchronized static void addNewUser(PrintWriter writer, int numOfUser,String role)
+    {
+        String[] info = {users.get(numOfUser),role};
+        currentUsers.put(writer,info);
+        //usersAndRoles.put(users.get(numOfUser),role);
+
+        //roles.add(role);
+        oStreams.add(writer);
+
+    }
+
+
+    // Remove user quit
+    private synchronized void removeOldUser(PrintWriter oldUser){
+        currentUsers.remove(oldUser);
+    }
+
+
+    // Send message to every user in current users list
+    public synchronized void sendMessage(String message){
+        for(PrintWriter user:currentUsers.keySet()){
+            user.write(message);
+            user.flush();
+
+        }
+    }
+    /**
+     * Delivers a message to all (broadcasting)
+     */
+    public synchronized void SendToAll(String message) {
+        for (PrintWriter writer : oStreams) {
+            writer.println(message + "\n" );
+            writer.flush();
+        }
+    }
+    /**
+     * Delivers a message from one client to others
+     */
+    public synchronized void sendFromClientToAll(String message, PrintWriter excludeUser) {
+        for (PrintWriter writer : oStreams) {
+
+            if (writer != excludeUser) {
+                writer.println(message);
+                writer.flush();
+            }
+        }
+    }
+
+    /**
+     * Delivers a message between mafias
+     */
+    public void sendFromMafiaToMafia(String message, PrintWriter excludeUser) {
+        for (PrintWriter writer : mafiaGroup.values()) {
+            if (writer != excludeUser) {
+                writer.println(message + "\n");
+                writer.flush();
+            }
+        }
+    }
+
+    /**
+     * Delivers a message to a client
+     */
+    public void sendToAClient(String message, PrintWriter writer) {
+        writer.println(message + "\n");
+        writer.flush();
+    }
+
+    /**
+     * Receives a message from a client
+     */
+    public String receiveFromAClient(BufferedReader reader) throws IOException {
+        String readFrom  = reader.readLine();
+        System.out.println(readFrom);
+        return readFrom;
+    }
+
+    public String setTime(String curTime)
+    {
+        String[] times = {"night","day","votingTime"};
+        int index = 0;
+        for (String time: times) {
+            if (time.equals(curTime))
+                index = time.indexOf(curTime);
+        }
+
+        if( index < times.length - 1)
+        {
+            return times[index + 1];
+        }
+        else
+            return times[0];
+
+    }
+
+    public int getMafias() {
+        return mafias;
+    }
+
 
     private void startGame()
     {
         int mafias = numberOfThreads - 8 - determinePlayers(numberOfThreads);
         String curTime;//badan claso stic kon va ino hamoon fildesh kon
         String username;
-        sendMessage("All mafias wake up!");
+        sendMessage("Mafias");
         for (int i = 0 ; i < mafias; i++)
         {
             //receive names and streams
 
         }
 
-        sendMessage("Who is God Father?");
-        sendMessage("Who is Dr Lector?");
-        sendMessage("Who is the mayor");
-        sendMessage("Who is the doctor");
-        sendMessage("Who is the sniper");
-        sendMessage("Who is the psychologist");
-        sendMessage("Who is the die hard");
+        sendMessage("God Father?");
+        sendMessage("Dr Lector?");
+        sendMessage("Mayor");
+        sendMessage("Doctor");
+        sendMessage("Sniper");
+        sendMessage("Psychologist");
+        sendMessage("Die hard");
 
         while(true){
             curTime = "night";
@@ -334,6 +378,7 @@ class Server {
         }
 
     }
+
 
 }
 /*
