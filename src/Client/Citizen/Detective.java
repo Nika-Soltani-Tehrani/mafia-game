@@ -10,10 +10,7 @@ public class Detective extends Citizen {
     //private static String role = "detective";
     //protected String curTime = "night";
 
-    public Detective(String username)
-    {
-        super(username);
-    }
+
 
 
 }

@@ -1,9 +1,6 @@
 package Client;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.Socket;
 import java.util.Scanner;
 
@@ -12,58 +9,17 @@ public class Client {
     private String username;
     private String role ;
     private static String curTime = "night";
-    private Socket socket;
-    private PrintWriter writer;
-    private BufferedReader reader;
+    private DataOutputStream writer;
+    private DataInputStream reader;
     Scanner sc = new Scanner(System.in);
 
 
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
 
         Client client = new Client();
         client.connectToServer();
 
-        /*client.receiveMessage();
-        if (client.getUsername().equals("mafia"))
-        {
-            client.sendMessage();
-        }
-        client.receiveMessage();
-        if (client.getUsername().equals("mafia"))
-        {
-            client.sendMessage();
-        }
-        client.receiveMessage();
-        if (client.getUsername().equals("mafia"))
-        {
-            client.sendMessage();
-        }
-        client.receiveMessage();
-        if (client.getUsername().equals("mafia"))
-        {
-            client.sendMessage();
-        }
-        client.receiveMessage();
-        if (client.getUsername().equals("mafia"))
-        {
-            client.sendMessage();
-        }
-        client.receiveMessage();
-        if (client.getUsername().equals("mafia"))
-        {
-            client.sendMessage();
-        }
-        client.receiveMessage();
-        if (client.getUsername().equals("mafia"))
-        {
-            client.sendMessage();
-        }
-        client.receiveMessage();
-        if (client.getUsername().equals("mafia"))
-        {
-            client.sendMessage();
-        }*/
 
 
     }
@@ -78,27 +34,21 @@ public class Client {
         sc.nextLine();
 
         try {
-            this.socket = new Socket("localhost", port);
+            Socket socket = new Socket("localhost", port);
             System.out.println("READY");
-            // writing to server
-            this.writer = new PrintWriter(socket.getOutputStream(), true);
-            // reading from server
-            this.reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
+            this.reader = new DataInputStream(socket.getInputStream());
+            //Write to the client
+            this.writer = new DataOutputStream(socket.getOutputStream());
 
             receiveMessage();//enter username
             sendMessage();//send a username
-
+            assignRole();
             //checkUniqueName();
-            //assignRole();
+            username = reader.readUTF();//waiting for assigning username
 
-            // welcome night
-            //if (receiveMessage().split(" ")[2].equals(role))
-            //{
-              //  sendMessage(username + " is " + role);
-            //}
 
-            receiveAndSendData();
+            new ReadThread(socket, this).start();
+            new WriteThread(socket, this).start();
 
 
 
@@ -112,7 +62,7 @@ public class Client {
      * Sends a message to the client.
      */
     public String receiveMessage() throws IOException {
-        String serverCommand = reader.readLine();
+        String serverCommand = reader.readUTF();
         System.out.println(serverCommand);
         return serverCommand;
     }
@@ -120,26 +70,19 @@ public class Client {
     /**
      * Sends a message to the server.
      */
-    public void sendMessage()
-    {
+    public void sendMessage() throws IOException {
         String clientMessage = sc.nextLine();
-        writer.write(clientMessage + "\n");
-        writer.flush();
+        writer.writeUTF(clientMessage);
         System.out.println(clientMessage);
     }
     /**
      * Sends a message to the server.
      */
-    /*public void sendMessage(String message)
-    {
-        writer.write(message + "\n");
-        writer.flush();
-        System.out.println(message);
-    }*/
+
     /*public void checkUniqueName() throws IOException {
         String serverCommand = reader.readLine();
         while (true) {
-            System.out.println(serverCommand + "s,dorkkoevroko");
+
             if (serverCommand.equals("True")) {
                 setUsername(serverCommand);
                 System.out.println("username is valid");
@@ -161,59 +104,132 @@ public class Client {
         this.username = username;
     }
 
+
     public void assignRole() throws IOException {
-        String serverCommand = reader.readLine();
+        String serverCommand = reader.readUTF();
         System.out.println(serverCommand);
         role =  serverCommand.split(" ")[3];
-        System.out.println(role);
+        //System.out.println(role);
     }
 
     /**
-     * sending username and score data to server
+     * writing content on file using bufferedWriter
+     * @param content is what we want to write to the file
      */
-    public void receiveAndSendData() throws IOException {
+    public void fileWriter(String content,File file) {
 
-        String input = sc.nextLine();
-
-        while(!input.equals("Exit")){
-            receiveMessage();
+        BufferedWriter writer = null;
+        try
+        {
+            writer = new BufferedWriter(new FileWriter(file));
+            writer.write(content);
+            writer.newLine();
+        }
+        catch(IOException e)
+        {
+            e.printStackTrace();
+        }
+        finally{
             try{
-                //dataOutputStream.writeUTF(input);
-                writer.println(input);
                 writer.flush();
-
-            }catch (Exception ex){
-                ex.printStackTrace();
+                writer.close();
             }
+            catch(IOException e){
+                e.printStackTrace();
+            }
+        }
+    }
 
-            input = sc.nextLine();
+
+    /**
+     * This method is used to edit a file
+     * @param file is the wanted file
+     * @param content is what we wanna add to our file.
+     */
+    public void editFile(File file,String content)
+    {
+        String result = "";
+
+        BufferedReader reader = null;
+
+        try {
+            reader = new BufferedReader(new FileReader(file));
+            String newLine;
+            while ((newLine = reader.readLine()) != null) {
+                //result = result.concat(newLine);
+                result = result + "\n" + newLine;
+            }
+            //System.out.println(result);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                assert reader != null;
+                reader.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
+        result = result.concat(content);
 
+        BufferedWriter writer = null;
+        try
+        {
+            //File file = new File(fileName);
+            writer = new BufferedWriter(new FileWriter(file));
+            writer.write(result);
+            writer.newLine();
+        }
+        catch(IOException e)
+        {
+            e.printStackTrace();
+        }
+        finally{
+            try{
+                assert writer != null;
+                writer.flush();
+                writer.close();
+            }
+            catch(IOException e){
+                e.printStackTrace();
+            }
+        }
     }
 
     /**
-     * receiving username and score data to server
+     * reading content from file using bufferedReader
+     * @param file file object
+     * @return content of the file
      */
-    public void receiveData(){
+    public String fileReader(File file) {
 
-        String input = sc.nextLine();
+        String result = "";
 
-        while(!input.equals("Exit")){
+        BufferedReader reader = null;
 
-            try{
-                //dataOutputStream.writeUTF(input);
-                writer.println(input);
-                writer.flush();
-
-            }catch (Exception ex){
-                ex.printStackTrace();
+        try {
+            reader = new BufferedReader(new FileReader(file));
+            String newLine;
+            while ((newLine = reader.readLine()) != null) {
+                result = result.concat(newLine);
             }
+            System.out.println(result);
 
-            input = sc.nextLine();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                assert reader != null;
+                reader.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
-
+        return result;
     }
+
 
 }

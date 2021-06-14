@@ -8,10 +8,6 @@ public class DieHard extends Citizen  {
     private static String role = "die hard";
     //protected String curTime = "night";
 
-    public DieHard(String username)
-    {
-        super(username);
-    }
 
 
 

@@ -13,10 +13,7 @@ public class Doctor extends Citizen{
     //private String role = "doctor";
     //private String curTime = "night";
 
-    public Doctor(String username)
-    {
-        super(username);
-    }
+
 
     public void setHeart()
     {
