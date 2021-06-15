@@ -13,18 +13,24 @@ import java.util.*;
 // Server class
 class Server {
 
-    final int port = 1234;
-    int numberOfThreads;
     int mafias;
-
-    private static ArrayList<String> users = new ArrayList<>();
-    private static ArrayList<DataOutputStream> oStreams = new ArrayList<>();
+    int numberOfThreads;
+    private Boolean dieHardAction;
+    final int port = 1234;
+    private String curTime = "day";
+    private DrLector drLector = new DrLector();
+    private DieHard dieHard = new DieHard();
+    private Doctor doctor = new Doctor();
+    private Psychologist psychologist = new Psychologist();
+    private ArrayList<String> quitedRoles = new ArrayList<>();
+    private ArrayList<String> users = new ArrayList<>();
+    private ArrayList<String> votes = new ArrayList<>();
+    private ArrayList<String> quitedUsernames = new ArrayList<>();
     private ArrayList<ClientHandler> clientHandlers = new ArrayList<>();
-    private static String curTime = "day";
+    private ArrayList<DataOutputStream> oStreams = new ArrayList<>();
     private LinkedHashMap<String,DataOutputStream> mafiaGroup = new LinkedHashMap<>();
     private LinkedHashMap<String,ClientHandler> mafiaHandlers = new LinkedHashMap<>();
     private LinkedHashMap<String,DataOutputStream> usersAndStreams  = new LinkedHashMap<>();
-
     private LinkedHashMap<DataOutputStream,String[]> streamsAndUsersRoles  = new LinkedHashMap<>();
 
     public Server()
@@ -113,9 +119,10 @@ class Server {
             System.err.println(e.getMessage());
         }
     }
-    public String getUsername(DataInputStream reader,DataOutputStream writer) throws IOException
+    public void getUsername(DataInputStream reader,DataOutputStream writer,String username) throws IOException
     {
-        String username = receiveFromAClient(reader);
+
+        System.out.println(username + " we");
         while (true){
             if (uniqueUsername(username)) {
                 users.add(username);
@@ -127,19 +134,19 @@ class Server {
                 //writer.println("False\n");
                 sendToAClient("False",writer);
                 System.out.println("False");
-                writer.flush();
+                username = reader.readUTF();
             }
         }
-        if (users.size() == numberOfThreads)
-            assignRoles(users.size());
-        return username;
+        //if (users.size() == numberOfThreads)
+          //  assignRoles(users.size());
+
     }
 
     private boolean uniqueUsername(String username)
     {
 
         //checking the uniqueness of the username
-        if (users.size() > 0) {
+        if (users.size() >= 1) {
             for (String user : users) {
                 if (username.equals(user)) {
                     System.out.println("No unique username");
@@ -211,6 +218,12 @@ class Server {
      * Delivers a message from one client to others
      */
     public synchronized void sendFromClientToAll(String message, DataOutputStream excludeUser) throws IOException {
+
+        if (psychologist.getMuted().getWriter().equals(excludeUser))
+        {
+            System.out.println("You are not allowed to say anything today because the psychologist has banned you");
+        }
+
         for (DataOutputStream writer : oStreams) {
             System.out.println("now writer is " + writer.toString());
             if (writer != excludeUser) {
@@ -243,7 +256,7 @@ class Server {
      */
     public String receiveFromAClient(DataInputStream reader) throws IOException {
         String readFrom  = reader.readUTF();
-        System.out.println(readFrom);
+        System.out.println(readFrom + "--------");
         return readFrom;
     }
 
@@ -269,35 +282,133 @@ class Server {
         return mafias;
     }
 
-    /**
-     * Stores username of the newly connected client.
-     */
-    //void addUser(ClientHandler user) {
-    //    oStreams.add(user.getWriter());
-    //}
 
     /**
      * When a client is disconnected, removes the associated username and UserThread
      */
-    void removeUser(ClientHandler aUser) {
-       // boolean removed = userNames.remove(userName);
-        //if (removed) {
-            clientHandlers.remove(aUser);
-            oStreams.remove(aUser.getWriter());
-            System.out.println("The user " + aUser.getUsername() + " quited");
-       // }
+    void removeUser(ClientHandler user) throws IOException {
+
+        String clientMessage;
+        user.getWriter().writeUTF("Choose one: [watch the rest] / [exit] ");
+        clientMessage = user.getReader().readUTF();
+        if(clientMessage.equals("watch the rest"))
+        {
+            user.getWriter().writeUTF("write exit for just watching ");
+            quitedUsernames.add(user.getUsername());
+            quitedRoles.add(user.getRole());
+        }
+        if (clientMessage.equals("exit"))
+        {
+            user.getWriter().writeUTF("write exit for just watching ");
+            clientHandlers.remove(user);
+            oStreams.remove(user.getWriter());
+            usersAndStreams.remove(user.getWriter());
+            if (user.getRole().equals("mafia") || user.getRole().equals("godFather")
+                    || user.getRole().equals("drLector"))
+            {
+                mafiaGroup.remove(user.getWriter());
+            }
+            users.remove(user.getUsername());
+            quitedUsernames.add(user.getUsername());
+            quitedRoles.add(user.getRole());
+
+        }
+
+        System.out.println("The user " + user.getUsername() + " quited");
+    }
+
+    public void dieHardAction()
+    {
+
     }
 
     public ArrayList<String> getUsers() {
         return users;
     }
 
+    /*public boolean checkReadiness()
+    {
+
+    }*/
+
+    public void handleVotes() throws IOException
+    {
+
+        boolean decline = false;
+        String clientMessage;
+        for (ClientHandler user: clientHandlers) {
+            if (user.getRole().equals("mayor"))
+            {
+                user.getWriter().writeUTF("Do you want to decline the voting? ");
+                clientMessage = user.getReader().readUTF();
+                if (clientMessage.equals("yes") || clientMessage.equals("Yes")) {
+                    decline = true;
+                    sendToAll("The mayor declined the voting");
+                }
+                else
+                    decline = false;
+            }
+        }
+        if (!decline){
+            String currentMax = "";
+            int maxCount = 0;
+            String current = votes.get(0);
+            int count = 0;
+            for (int i = 0; i < votes.size(); i++) {
+                String item = votes.get(i);
+                if (item.equals(current)) {
+                    count++;
+                } else {
+                    if (count > maxCount) {
+                        maxCount = count;
+                        currentMax = current;
+                    }
+                    count = 1;
+                    current = item;
+                }
+            }
+
+            for (ClientHandler user : clientHandlers) {
+
+                if (user.getUsername().equals(currentMax)) {
+                    if (user.getRole().equals("mafia") || user.getRole().equals("godFather") || user.getRole().equals("drLector")) {
+                        if (drLector.getSave().equals(user.getUsername())) {
+                            System.out.println("Dr Lector saved " + currentMax);
+                        } else {
+                            removeUser(user);
+                        }
+                    } else {
+                        if (doctor.getSave().equals(user.getUsername())) {
+                            System.out.println("Doctor saved " + currentMax);
+                        } else {
+                            removeUser(user);
+                        }
+
+                    }
+                }
+            }
+        }
+    }
+
+    public boolean endOfGame() throws IOException {
+        int citizens = users.size() - mafiaGroup.size();
+        if (citizens < mafiaGroup.size() )
+        {
+            sendToAll("Mafias won ");
+            return false;
+        }
+        if (mafiaGroup.size() == 0)
+        {
+            sendToAll("Citizens won ");
+            return false;
+        }
+        else
+            return true;
+    }
 
 
 
     public void startGame() throws IOException {
-
-        sendToAll("Welcome all to the game");
 
     }
 
@@ -309,65 +420,59 @@ class Server {
         return numberOfThreads;
     }
 
-    public void setNumberOfThreads(int numberOfThreads) {
-        this.numberOfThreads = numberOfThreads;
-    }
-
-    public void setMafias(int mafias) {
-        this.mafias = mafias;
-    }
-
-    public static void setUsers(ArrayList<String> users) {
-        Server.users = users;
-    }
-
-    public static ArrayList<DataOutputStream> getoStreams() {
-        return oStreams;
-    }
-
-    public static void setoStreams(ArrayList<DataOutputStream> oStreams) {
-        Server.oStreams = oStreams;
-    }
-
     public ArrayList<ClientHandler> getClientHandlers() {
         return clientHandlers;
-    }
-
-    public void setClientHandlers(ArrayList<ClientHandler> clientHandlers) {
-        this.clientHandlers = clientHandlers;
-    }
-
-    public static void setCurTime(String curTime) {
-        Server.curTime = curTime;
     }
 
     public LinkedHashMap<String, DataOutputStream> getMafiaGroup() {
         return mafiaGroup;
     }
 
-    public void setMafiaGroup(LinkedHashMap<String, DataOutputStream> mafiaGroup) {
-        this.mafiaGroup = mafiaGroup;
-    }
-
     public LinkedHashMap<String, ClientHandler> getMafiaHandlers() {
         return mafiaHandlers;
     }
 
-    public void setMafiaHandlers(LinkedHashMap<String, ClientHandler> mafiaHandlers) {
-        this.mafiaHandlers = mafiaHandlers;
-    }
 
     public LinkedHashMap<String, DataOutputStream> getUsersAndStreams() {
         return usersAndStreams;
     }
 
-    public void setUsersAndStreams(LinkedHashMap<String, DataOutputStream> usersAndStreams) {
-        this.usersAndStreams = usersAndStreams;
-    }
 
     public LinkedHashMap<DataOutputStream,String[]> getStreamsAndUsersRoles() {
         return streamsAndUsersRoles;
     }
+
+
+    public ArrayList<String> getQuitedUsernames() {
+        return quitedUsernames;
+    }
+
+
+    public ArrayList<String> getQuitedRoles() {
+        return quitedRoles;
+    }
+
+    public Psychologist getPsychologist() {
+        return psychologist;
+    }
+
+    public ArrayList<String> getVotes() {
+        return votes;
+    }
+
+    public DrLector getDrLector() {
+        return drLector;
+    }
+
+    public DieHard getDieHard() {
+        return dieHard;
+    }
+
+    public Doctor getDoctor() {
+        return doctor;
+    }
+
+
 }
 /*
 public void writeFile(ArrayList<Record> array, String filePath) {

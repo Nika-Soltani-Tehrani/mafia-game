@@ -49,10 +49,12 @@ public class WriteThread extends Thread {
             e.printStackTrace();
         }
 
+        String defaultText;
         String text;
 
         do {
-            System.out.println("[" + userName + "]: ");
+            //System.out.println("[" + userName + "]: ");
+            defaultText = "[" + userName + "]: ";
             text = sc.nextLine();
 
             if (text.equals("HISTORY"))
@@ -62,6 +64,7 @@ public class WriteThread extends Thread {
             else {
                 client.editFile(file, text + "\n");
                 try {
+                    text = defaultText + " " + text;
                     writer.writeUTF(text);
                 } catch (IOException e) {
                     e.printStackTrace();

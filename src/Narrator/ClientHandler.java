@@ -2,8 +2,7 @@ package Narrator;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.LinkedHashMap;
-import java.util.Map;
+
 
 
 public class ClientHandler extends Thread{
@@ -42,42 +41,55 @@ public class ClientHandler extends Thread{
             server.sendToAClient("Enter a username",writer);
             username = reader.readUTF();
             System.out.println(username);
-            server.getUsers().add(username);
+            server.getUsername(this.getReader(),this.getWriter(),username);
+
 
             serverMessage = "Your role is " + role;
             writer.writeUTF(serverMessage);
-            //server.getUsername(this.getReader(),this.getWriter());
+
 
             //server.assignNames();
             username = reader.readUTF();
 
-            //server.addUser(this);
+
 
             serverMessage = "New user connected: " + username;
             server.sendFromClientToAll(serverMessage, this.writer);
 
             welcomeNight();
 
-            do {
-                clientMessage = reader.readUTF();
-                if(server.getCurTime().equals("day"))
-                {
-                    serverMessage = "[" + username + "]: " + clientMessage;
-                    server.sendFromClientToAll(serverMessage, this.writer);
-                }
-                if(server.getCurTime().equals("night") && (role.equals("mafia") || role.equals("godFather") ||
-                        role.equals("drLector")))
-                {
-                    nightFunction(clientMessage);
-                }
+            while (server.endOfGame()){
+                do {
+                    clientMessage = reader.readUTF();
+                    if (server.getCurTime().equals("day")) {
+                        for (String name : server.getQuitedUsernames()) {
+                            writer.writeUTF(name + " quited the game last night ");
+                        }
+                        if (server.getDieHard().getAsked()) {
+                            for (String role : server.getQuitedRoles()) {
+                                writer.writeUTF(role + " quited the game last night ");
+                            }
+                        }
+                        //do
+                        serverMessage = "[" + username + "]: " + clientMessage;
+                        server.sendFromClientToAll(serverMessage, this.writer);
+                        clientMessage = reader.readUTF();
+                        //while(times up);
+                        votingCollection();
+                    }
 
-            } while (!clientMessage.equals("exit"));
+                    if (server.getCurTime().equals("night")) {
+                        nightFunction(clientMessage);
+                    }
 
-            server.removeUser( this);
-            socket.close();
+                } while (!clientMessage.equals("exit"));
 
-            serverMessage = username + " has quited.";
-            server.sendFromClientToAll(serverMessage, this.writer);
+                server.removeUser(this);
+                socket.close();
+
+                serverMessage = username + " has quited.";
+                server.sendFromClientToAll(serverMessage, this.writer);
+            }
 
 
         } catch (IOException e) {
@@ -94,7 +106,7 @@ public class ClientHandler extends Thread{
             catch (IOException e)
             {
                 //throw new RuntimeException(e);
-                e.printStackTrace();
+                System.err.println(e.getMessage());
             }
         }
     }
@@ -103,6 +115,7 @@ public class ClientHandler extends Thread{
         String clientMessage;
         String serverMessage;
 
+
         writer.writeUTF("welcome to the game");
         if ((role.equals("mafia") || role.equals("godFather") || role.equals("drLector")))
         {
@@ -110,6 +123,7 @@ public class ClientHandler extends Thread{
             serverMessage = "[" + username + "]: " + clientMessage;
             server.sendFromMafiaToMafia(serverMessage, this.writer);
         }
+
 
         if ((role.equals("doctor")))
         {
@@ -128,76 +142,164 @@ public class ClientHandler extends Thread{
     public void nightFunction(String clientMessage) throws IOException {
         String serverMessage;
 
-        serverMessage = "[" + username + "]: " + clientMessage;
-        server.sendFromMafiaToMafia(serverMessage, this.writer);
-        // set timer
+        if ((role.equals("mafia") || role.equals("godFather") || role.equals("drLector")))
+        {
+            do {
+                serverMessage = "[" + username + "]: " + clientMessage;
+                server.sendFromMafiaToMafia(serverMessage, this.writer);
+                clientMessage = reader.readUTF();
+            } while(!clientMessage.equals("exit"));// or times up
+            // set timer
 
-        if (server.getCurTime().equals("votingTime")) {
             if (role.equals("godFather")) {
                 writer.writeUTF("Who do you want to kill? ");
-                reader.readUTF();
-            }
-            if (role.equals("drLector")) {
-                writer.writeUTF("Which mafia do you want to save? ");
-                reader.readUTF();
-            }
-            if (role.equals("doctor")) {
-                writer.writeUTF("Which citizen do you want to save? ");
-                reader.readUTF();
-            }
-            if (role.equals("detective")) {
-                writer.writeUTF("Who do you want to know his role ");
-                reader.readUTF();
-            }
-            if (role.equals("sniper")) {
-                writer.writeUTF("Do you want to use your role? ");
                 clientMessage = reader.readUTF();
-                if (clientMessage.equals("yes") || clientMessage.equals("Yes")){
-                    writer.writeUTF("Who do you want to kill ");
-                    clientMessage = reader.readUTF();
-                    for (ClientHandler user : server.getClientHandlers()) {
-                        if (user.getUsername().equals(clientMessage) &&
-                                (user.getRole().equals("mafia")) || user.getRole().equals("godFather")
-                                ||user.getRole().equals("drLector"))
+                for (ClientHandler user : server.getClientHandlers()) {
+                    if (user.getUsername().equals(clientMessage))
+                    {
+                        if (user.getRole().equals("dieHard"))
                         {
-                            server.removeUser(user);
+                            if (!server.getDieHard().haveNightHeart())
+                            {
+                                server.removeUser(user);
+                            }
                         }
-                        else
+                        if (user.getRole().equals("doctor"))
                         {
-                            for (ClientHandler player : server.getClientHandlers()) {
-                                if (player.getRole().equals("sniper")) {
-                                    server.removeUser(user);
-                                }
+                            if (!server.getDoctor().haveHeart())
+                            {
+                                server.removeUser(user);
                             }
                         }
                     }
                 }
-
             }
-            if (role.equals("psychologist")) {
-                writer.writeUTF("Do you want to mute someone ");
-                reader.readUTF();
+            if (role.equals("drLector")) {
+                writer.writeUTF("Which mafia do you want to save? (say [his name] or say [myself] to save yourself) ");
                 clientMessage = reader.readUTF();
-                if (clientMessage.equals("yes") || clientMessage.equals("Yes")){
-                    writer.writeUTF("Who do you want to mute ");
-                    clientMessage = reader.readUTF();
-                    for (ClientHandler user : server.getClientHandlers()) {
-                        if (user.getUsername().equals(clientMessage))
+                if (clientMessage.equals("myself"))
+                {
+                    if (server.getDrLector().haveHeart()){
+                        server.getDrLector().setSave("drLector");
+                    }
+                    else
+                        writer.writeUTF("You don't have extra heart ");
+                }
+                else
+                {
+                    server.getDrLector().setSave(clientMessage);
+                    writer.writeUTF("You used your this night's potion for saving " + clientMessage);
+                }
+            }
+        }
+
+        if (role.equals("doctor")) {
+            writer.writeUTF("Which citizen do you want to save?(say [his name] or say [myself] to save yourself) ");
+            clientMessage = reader.readUTF();
+            if (clientMessage.equals("myself"))
+            {
+                if (server.getDoctor().haveHeart()){
+                    server.getDoctor().setSave("doctor");
+                }
+                else
+                    writer.writeUTF("You don't have extra heart ");
+            }
+            else
+            {
+                server.getDrLector().setSave(clientMessage);
+                writer.writeUTF("You used your this night's potion for saving " + clientMessage);
+            }
+        }
+        if (role.equals("detective")) {
+            writer.writeUTF("Who do you want to know his role ");
+            clientMessage = reader.readUTF();
+            for (ClientHandler user : server.getClientHandlers()) {
+                if (user.getUsername().equals(clientMessage))
+                {
+                    if (user.getRole().equals("mafia") || user.getRole().equals("drLector"))
+                    {
+                        if (server.getQuitedRoles().contains("mafia") || server.getQuitedRoles().contains("drLector"))
                         {
-                            // send its stream  to handle
+                            writer.writeUTF("This role has quited ");
+                        }
+                        else
+                            writer.writeUTF("This role is in the game now");
+                    }
+                    else
+                        writer.writeUTF("You are not allowed to know this information");
+                }
+            }
+        }
+        if (role.equals("sniper")) {
+            writer.writeUTF("Do you want to use your role? ");
+            clientMessage = reader.readUTF();
+            if (clientMessage.equals("yes") || clientMessage.equals("Yes")){
+                writer.writeUTF("Who do you want to kill ");
+                clientMessage = reader.readUTF();
+                for (ClientHandler user : server.getClientHandlers()) {
+                    if (user.getUsername().equals(clientMessage) &&
+                            (user.getRole().equals("mafia")) || user.getRole().equals("godFather")
+                            ||user.getRole().equals("drLector"))
+                    {
+                        server.removeUser(user);
+                    }
+                    else
+                    {
+                        for (ClientHandler player : server.getClientHandlers()) {
+                            if (player.getRole().equals("sniper")) {
+                                server.removeUser(user);
+                            }
                         }
                     }
                 }
             }
-            if (role.equals("dieHard")) {
-                writer.writeUTF("Do you want to use your role ");
-                reader.readUTF();
+
+        }
+        if (role.equals("psychologist")) {
+            writer.writeUTF("Do you want to mute someone ");
+            reader.readUTF();
+            clientMessage = reader.readUTF();
+            if (clientMessage.equals("yes") || clientMessage.equals("Yes")){
+                server.getPsychologist().setToMute(true);
+                writer.writeUTF("Who do you want to mute ");
                 clientMessage = reader.readUTF();
-                if (clientMessage.equals("yes") || clientMessage.equals("Yes")){
-                    // save it for the day to tell his which roles ended
+                for (ClientHandler user : server.getClientHandlers()) {
+                    if (user.getUsername().equals(clientMessage))
+                    {
+                        server.getPsychologist().setMuted(user);
+                    }
                 }
             }
+            else
+                server.getPsychologist().setToMute(false);
+        }
+        if (role.equals("dieHard")) {
+            writer.writeUTF("Do you want to use your role ");
+            reader.readUTF();
+            clientMessage = reader.readUTF();
+            if (clientMessage.equals("yes") || clientMessage.equals("Yes")){
+                if (server.getDieHard().canAsk()){
+                    server.getDieHard().setWantToAsk(true);
+                }
+                else
+                    writer.writeUTF("You can not ask anymore ");
+            }
+            else
+                server.getDieHard().setWantToAsk(false);
+        }
 
+    }
+
+    public void votingCollection() throws IOException {
+        String clientMessage;
+        writer.writeUTF("Who do you vote to kill? ");
+        clientMessage = reader.readUTF();
+        server.getVotes().add(clientMessage);
+        server.sendToAll("[" + username + "] voted for killing " + clientMessage);
+        if (server.getVotes().size() == server.numberOfThreads)
+        {
+            System.out.println("voting handling" + server.getVotes().size());
+            server.handleVotes();
         }
     }
 

@@ -42,9 +42,10 @@ public class Client {
 
             receiveMessage();//enter username
             sendMessage();//send a username
+            checkUniqueName();
             assignRole();
-            //checkUniqueName();
-            username = reader.readUTF();//waiting for assigning username
+
+            //username = reader.readUTF();//waiting for assigning username
 
 
             new ReadThread(socket, this).start();
@@ -79,8 +80,9 @@ public class Client {
      * Sends a message to the server.
      */
 
-    /*public void checkUniqueName() throws IOException {
-        String serverCommand = reader.readLine();
+    public void checkUniqueName() throws IOException {
+        String serverCommand = reader.readUTF();
+        System.out.println(serverCommand + " here");
         while (true) {
 
             if (serverCommand.equals("True")) {
@@ -93,9 +95,9 @@ public class Client {
                 sendMessage();
 
             }
-            serverCommand = reader.readLine();
+            serverCommand = reader.readUTF();
         }
-    }*/
+    }
     public String getUsername() {
         return username;
     }

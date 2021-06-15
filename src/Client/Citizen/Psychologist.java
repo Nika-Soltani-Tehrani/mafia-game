@@ -1,12 +1,30 @@
 package Client.Citizen;
 
 
+import Narrator.ClientHandler;
 
 public class Psychologist extends Citizen{
 
-    private String guess;//This field is used to save the one's name which the citizen thinks he is mafia.
-    //private String username;
-    private String role = "psychologist";
+    private ClientHandler muted;
+    private boolean toMute;
+
+    public ClientHandler getMuted() {
+        return muted;
+    }
+
+    public void setMuted(ClientHandler muted) {
+        this.muted = muted;
+    }
+
+    public boolean wantToMute() {
+        return toMute;
+    }
+
+    public void setToMute(boolean toMute) {
+        this.toMute = toMute;
+    }
+
+
 
 
 }

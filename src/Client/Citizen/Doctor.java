@@ -5,38 +5,41 @@ package Client.Citizen;
 
 public class Doctor extends Citizen{
 
-    private String guess;//This field is used to save the one's name which the citizen thinks he is mafia.
-    private int extraHeart = 1;
-    private int potion = 2;
 
-    //private String username;
-    //private String role = "doctor";
-    //private String curTime = "night";
+    private String save;
+    private int heart = 1;
 
-
-
-    public void setHeart()
-    {
-        if (extraHeart != 0) {
-            extraHeart--;
-        }
-        else
-        {
-            System.out.println("Doctor died");
-            //handle how to close his stream and client service
-        }
+    /**
+     * This method is used to access the person whom doctor wants to save
+     */
+    public String getSave() {
+        return save;
     }
 
-    public boolean setPotion()
-    {
-        if (potion != 0) {
-            potion--;
+    /**
+     * This method is used to determine whom doctor wants to save
+     * @param save is the person whom doctor wants to save
+     */
+    public void setSave(String save) {
+        this.save = save;
+    }
+
+
+    public int getHeart() {
+        return heart;
+    }
+
+    public boolean haveHeart() {
+        if (heart == 1) {
+            heart--;
             return true;
         }
         else
-        {
             return false;
-        }
     }
+
+
+
+
 
 }
